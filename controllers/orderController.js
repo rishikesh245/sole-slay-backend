@@ -1,5 +1,6 @@
 const { Order, OrderItem, Product, ProductImage, User } = require("../models");
 const sequelize = require("../config/database");
+const { sendOrderEmailBackend } = require("../services/emailService");
 
 /**
  * =========================================================
@@ -166,8 +167,19 @@ const createOrder = async (req, res) => {
     // =======================================================
     await transaction.commit();
 
+    // Asynchronously dispatch real-time order confirmation email via EmailJS (non-blocking)
+    sendOrderEmailBackend({
+      order,
+      items: populatedOrderItems,
+      customerName: name.trim(),
+      customerEmail: email.trim(),
+      customerPhone: mobile.trim(),
+      shippingAddress: address.trim(),
+    }).catch((err) => console.error("BACKEND EMAIL TRIGGER ERROR:", err));
+
     return res.status(201).json({
       message: "Order placed successfully",
+      email_dispatched: true,
       order: {
         id: order.id,
         total_amount: order.total_amount,
