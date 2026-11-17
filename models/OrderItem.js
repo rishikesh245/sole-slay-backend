@@ -25,6 +25,12 @@ const OrderItem = sequelize.define(
             allowNull: false
         },
 
+        size: {
+            type: DataTypes.STRING(20),
+            allowNull: true,
+            defaultValue: "Standard"
+        },
+
         quantity: {
             type: DataTypes.INTEGER,
             allowNull: false
@@ -37,7 +43,15 @@ const OrderItem = sequelize.define(
     },
     {
         tableName: "order_items",
-        timestamps: false
+        timestamps: false,
+        indexes: [
+            {
+                fields: ["order_id"]
+            },
+            {
+                fields: ["product_id"]
+            }
+        ]
     }
 );
 

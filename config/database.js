@@ -15,6 +15,12 @@ const sequelize = new Sequelize(
     port: Number(process.env.DB_PORT),
     dialect: "mysql",
     logging: false,
+    pool: {
+      max: 10,
+      min: 2,
+      acquire: 30000,
+      idle: 10000
+    },
     dialectOptions: {
       ssl: {
         ca: caCertificate,

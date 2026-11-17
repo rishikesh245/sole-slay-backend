@@ -17,7 +17,10 @@ const Product = sequelize.define(
 
     price: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false
+      allowNull: false,
+      validate: {
+        min: 0
+      }
     },
 
     subcategory_id: {
@@ -31,12 +34,20 @@ const Product = sequelize.define(
 
     stock: {
       type: DataTypes.INTEGER,
-      defaultValue: 0
+      defaultValue: 0,
+      validate: {
+        min: 0
+      }
     }
   },
   {
     tableName: "products",
-    timestamps: false
+    timestamps: false,
+    indexes: [
+      {
+        fields: ["subcategory_id"]
+      }
+    ]
   }
 );
 

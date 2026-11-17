@@ -22,7 +22,12 @@ const ProductImage = sequelize.define(
     },
     {
         tableName: "product_images",
-        timestamps: false
+        timestamps: false,
+        indexes: [
+            {
+                fields: ["product_id"]
+            }
+        ]
     }
 );
 

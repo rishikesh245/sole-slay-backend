@@ -39,9 +39,9 @@ const getProducts = async (req, res) => {
         res.status(200).json(products);
 
     } catch (error) {
+        console.error("GET PRODUCTS ERROR:", error);
         res.status(500).json({
-            message: "Error fetching products",
-            error: error.message
+            message: "Failed to fetch products"
         });
     }
 };
@@ -64,7 +64,10 @@ const createProduct = async (req, res) => {
         // CHECK PRODUCT DETAILS
         if (
             !name ||
-            !price ||
+            typeof name !== "string" ||
+            !name.trim() ||
+            price === undefined ||
+            price === null ||
             !subcategory_id
         ) {
             return res.status(400).json({
@@ -72,72 +75,68 @@ const createProduct = async (req, res) => {
             });
         }
 
+        const numPrice = Number(price);
+        if (isNaN(numPrice) || numPrice < 0) {
+            return res.status(400).json({
+                message: "Price must be a valid non-negative number"
+            });
+        }
+
+        const numStock = Number(stock !== undefined && stock !== "" ? stock : 0);
+        if (!Number.isInteger(numStock) || numStock < 0) {
+            return res.status(400).json({
+                message: "Stock must be a non-negative integer"
+            });
+        }
+
+        const subcatId = Number(subcategory_id);
+        if (!Number.isInteger(subcatId) || subcatId <= 0) {
+            return res.status(400).json({
+                message: "Valid subcategory ID is required"
+            });
+        }
 
         // CHECK IMAGES
         if (
             !images ||
             !Array.isArray(images) ||
-            images.length < 3
+            images.length < 3 ||
+            !images.every(url => typeof url === "string" && url.startsWith("http"))
         ) {
             return res.status(400).json({
-                message: "At least 3 images are required"
+                message: "At least 3 valid image URLs are required"
             });
         }
 
-
         // CREATE PRODUCT
         const product = await Product.create({
-
-            name: name,
-
-            price: price,
-
-            subcategory_id: subcategory_id,
-
-            description: description,
-
-            stock: stock
-
+            name: name.trim(),
+            price: numPrice,
+            subcategory_id: subcatId,
+            description: description ? String(description).trim() : "",
+            stock: numStock
         });
-
 
         // CREATE PRODUCT IMAGES
         const productImages = images.map((url) => ({
-
             product_id: product.id,
-
             image_url: url
-
         }));
-
 
         await ProductImage.bulkCreate(productImages);
 
-
         // RESPONSE
         res.status(201).json({
-
             message: "Product created successfully",
-
             product: product,
-
             images: productImages
-
         });
-
 
     } catch (error) {
-
         console.error("CREATE PRODUCT ERROR:", error);
-
         res.status(500).json({
-
-            message: "Failed to create product",
-
-            error: error.message
-
+            message: "Failed to create product"
         });
-
     }
 };
                    //****//
@@ -170,207 +169,142 @@ const getProductById = async (req, res) => {
         res.status(200).json(product);
 
     } catch (error) {
+        console.error("GET PRODUCT BY ID ERROR:", error);
         res.status(500).json({
-            message: error.message
+            message: "Failed to fetch product details"
         });
     }
 };
 
 const updateProduct = async (req, res) => {
-
     try {
-
         const product = await Product.findByPk(req.params.id);
 
         if (!product) {
-
             return res.status(404).json({
                 message: "Product not found"
             });
-
         }
 
+        const updateData = {};
+        if (req.body.name !== undefined) {
+            if (typeof req.body.name !== "string" || !req.body.name.trim()) {
+                return res.status(400).json({ message: "Name must be non-empty text" });
+            }
+            updateData.name = req.body.name.trim();
+        }
+
+        if (req.body.price !== undefined) {
+            const numPrice = Number(req.body.price);
+            if (isNaN(numPrice) || numPrice < 0) {
+                return res.status(400).json({ message: "Price must be a valid non-negative number" });
+            }
+            updateData.price = numPrice;
+        }
+
+        if (req.body.subcategory_id !== undefined) {
+            const subcatId = Number(req.body.subcategory_id);
+            if (!Number.isInteger(subcatId) || subcatId <= 0) {
+                return res.status(400).json({ message: "Valid subcategory ID is required" });
+            }
+            updateData.subcategory_id = subcatId;
+        }
+
+        if (req.body.stock !== undefined) {
+            const numStock = Number(req.body.stock);
+            if (!Number.isInteger(numStock) || numStock < 0) {
+                return res.status(400).json({ message: "Stock must be a non-negative integer" });
+            }
+            updateData.stock = numStock;
+        }
+
+        if (req.body.description !== undefined) {
+            updateData.description = String(req.body.description).trim();
+        }
 
         // =========================================
         // UPDATE PRODUCT DETAILS
         // =========================================
-
-        await product.update({
-
-            name: req.body.name,
-
-            price: req.body.price,
-
-            subcategory_id:
-                req.body.subcategory_id,
-
-            description:
-                req.body.description,
-
-            stock:
-                req.body.stock
-
-        });
-
+        await product.update(updateData);
 
         // =========================================
         // UPDATE PRODUCT IMAGES
         // =========================================
-       if (Array.isArray(req.body.images)) {
+        if (Array.isArray(req.body.images)) {
+            if (req.body.images.length < 3) {
+                return res.status(400).json({
+                    message: "At least 3 images are required"
+                });
+            }
 
-    // At least 3 images are required
+            // Delete old images
+            await ProductImage.destroy({
+                where: {
+                    product_id: product.id
+                }
+            });
 
-    if (req.body.images.length < 3) {
+            // Create new image records
+            const imageRecords = req.body.images.map((imageUrl) => ({
+                product_id: product.id,
+                image_url: imageUrl
+            }));
 
-        return res.status(400).json({
-            message: "At least 3 images are required"
-        });
-
-    }
-
-
-    // Delete old images
-
-    await ProductImage.destroy({
-
-        where: {
-            product_id: product.id
+            await ProductImage.bulkCreate(imageRecords);
         }
-
-    });
-
-
-    // Create new image records
-
-    const imageRecords =
-        req.body.images.map((imageUrl) => ({
-
-            product_id: product.id,
-
-            image_url: imageUrl
-
-        }));
-
-
-    // Save new images
-
-    await ProductImage.bulkCreate(
-        imageRecords
-    );
-
-}
-        
 
         // =========================================
         // RESPONSE
         // =========================================
-
-        const updatedProduct =
-            await Product.findByPk(
-                product.id,
+        const updatedProduct = await Product.findByPk(product.id, {
+            include: [
                 {
-                    include: [
-                        {
-                            model: ProductImage,
-                            as: "images"
-                        }
-                    ]
+                    model: ProductImage,
+                    as: "images"
                 }
-            );
-
-
-        res.status(200).json(
-            updatedProduct
-        );
-
-
-    } catch (error) {
-
-        console.error(
-            "========== UPDATE PRODUCT ERROR =========="
-        );
-
-        console.error(error);
-
-        console.error(
-            "MESSAGE:",
-            error.message
-        );
-
-        console.error(
-            "=========================================="
-        );
-
-
-        res.status(500).json({
-
-            message: error.message
-
+            ]
         });
 
-    }
+        res.status(200).json(updatedProduct);
 
+    } catch (error) {
+        console.error("UPDATE PRODUCT ERROR:", error);
+        res.status(500).json({
+            message: "Failed to update product"
+        });
+    }
 };
 
-
 const deleteProduct = async (req, res) => {
-
     try {
-
         const product = await Product.findByPk(req.params.id);
 
         if (!product) {
-
             return res.status(404).json({
                 message: "Product not found"
             });
-
         }
 
-
         // Delete product images first
-
         await ProductImage.destroy({
             where: {
                 product_id: product.id
             }
         });
 
-
         // Delete product
-
         await product.destroy();
-
 
         res.status(200).json({
             message: "Product deleted successfully"
         });
 
-
     } catch (error) {
-
-        console.error(
-            "========== DELETE PRODUCT ERROR =========="
-        );
-
-        console.error(error);
-
-        console.error(
-            "MESSAGE:",
-            error.message
-        );
-
-        console.error(
-            "=========================================="
-        );
-
-
+        console.error("DELETE PRODUCT ERROR:", error);
         res.status(500).json({
-            message: error.message
+            message: "Failed to delete product"
         });
-
     }
-
 };
 
 module.exports = {
